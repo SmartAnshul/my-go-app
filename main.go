@@ -21,7 +21,7 @@ func main() {
 	defer cancel()
 
 	// MongoDB URI (Ensure to replace `<username>` and `<password>` with your actual credentials)
-	mongoURI := "mongodb+srv://anshulagnihotri008:empDXXO2aPxQNXxv@cluster0.yjrxe.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+	mongoURI := "mongodb+srv://anshulagnihotri008:LQ9NDKyg3Uv59Utk@cluster0.yjrxe.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
 	// Connect to MongoDB
 	var err error
