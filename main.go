@@ -1,32 +1,59 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var client *mongo.Client
 
 func main() {
+	// Use context with timeout for MongoDB connection
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get MongoDB URI from environment variables
+	mongoURI := os.Getenv("MONGODB_URI")
+	if mongoURI == "" {
+		log.Fatal("MONGODB_URI environment variable is not set")
+	}
+
+	// Connect to MongoDB
 	var err error
-	client, err = mongo.Connect(nil, options.Client().ApplyURI("mongodb://localhost:27017"))
+	client, err = mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// Verify MongoDB connection
+	if err = client.Ping(ctx, nil); err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Connected to MongoDB!")
+
+	// Initialize Gin router
 	router := gin.Default()
 
+	// Middleware and routes
+	router.Use(gin.Logger(), gin.Recovery())
 	router.POST("/signup", Signup)
 	router.POST("/login", Login)
 
+	// Start the server
 	router.Run(":8080")
 }
 
+// Signup handler
 func Signup(c *gin.Context) {
 	type User struct {
 		Username string `json:"username"`
@@ -39,16 +66,25 @@ func Signup(c *gin.Context) {
 		return
 	}
 
-	collection := client.Database("mydb").Collection("users")
-	_, err := collection.InsertOne(c, bson.M{"username": user.Username, "password": user.Password})
+	// Hash the password before storing it in the database
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+
+	// Store the user in the MongoDB collection
+	collection := client.Database("mydb").Collection("users")
+	_, err = collection.InsertOne(c, bson.M{"username": user.Username, "password": string(hashedPassword)})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User created successfully"})
 }
 
+// Login handler
 func Login(c *gin.Context) {
 	type User struct {
 		Username string `json:"username"`
@@ -61,9 +97,17 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// Retrieve user from the database
 	collection := client.Database("mydb").Collection("users")
-	var result bson.M
-	err := collection.FindOne(c, bson.M{"username": user.Username, "password": user.Password}).Decode(&result)
+	var storedUser bson.M
+	err := collection.FindOne(c, bson.M{"username": user.Username}).Decode(&storedUser)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		return
+	}
+
+	// Compare the stored hashed password with the provided password
+	err = bcrypt.CompareHashAndPassword([]byte(storedUser["password"].(string)), []byte(user.Password))
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
