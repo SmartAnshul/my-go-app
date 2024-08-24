@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,11 +20,8 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get MongoDB URI from environment variables
-	mongoURI := os.Getenv("MONGODB_URI")
-	if mongoURI == "" {
-		log.Fatal("MONGODB_URI environment variable is not set")
-	}
+	// MongoDB URI (Ensure to replace `<username>` and `<password>` with your actual credentials)
+	mongoURI := "mongodb+srv://anshulagnihotri008:empDXXO2aPxQNXxv@cluster0.yjrxe.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
 	// Connect to MongoDB
 	var err error
